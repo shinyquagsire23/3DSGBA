@@ -249,12 +249,13 @@ static void load_image_preferences(void)
 
    for(int i = 0; i < 256; i++)
    {
-      if(!strcmp(gbaover[i].romid, buffer))
-      {
-         found = true;
-         found_no = i;
-         break;
-      }
+       if(gbaover[i].romid != NULL) {
+           if(!strcmp(gbaover[i].romid, buffer)) {
+               found = true;
+               found_no = i;
+               break;
+           }
+       }
    }
 
    if(found)
