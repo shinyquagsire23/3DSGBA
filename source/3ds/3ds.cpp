@@ -4,6 +4,8 @@
 #include <3ds.h>
 #include <sys/dirent.h>
 #include <sys/stat.h>
+#include <sys/unistd.h>
+#include <fcntl.h>
 #include <vector>
 #include <algorithm>
 
@@ -145,8 +147,6 @@ static unsigned char asciiData[128][8] = {
         { 0x00, 0x08, 0x1C, 0x36, 0x63, 0x41, 0x41, 0x7F }
 };
 
-static unsigned serialize_size = 0;
-
 typedef struct  {
    const char* romtitle;
    const char* romid;
@@ -278,13 +278,16 @@ PAD_KEY buttonMap[10] = {
         KEY_L
 };
 
-bool pause = false;
+bool emuPause = false;
 bool emuStarted = false;
 
+static unsigned serialize_size = 0;
 static unsigned has_frame;
 static unsigned g_audio_frames;
 static unsigned g_video_frames;
 extern uint64_t joy;
+
+char* gamePath;
 
 u8* fb;
 u16 fbWidth, fbHeight = 0;
@@ -551,9 +554,45 @@ void emulator_reset(void)
 void emulator_run(void) {
    hidScanInput();
    if(hidKeysDown() & KEY_TOUCH) {
-       pause = true;
+       emuPause = true;
        return;
    }
+
+    if(hidKeysDown() & KEY_X) {
+        char* fname = strdup(gamePath);
+        fname[strlen(fname) - 3] = 'r';
+        fname[strlen(fname) - 2] = 'a';
+        fname[strlen(fname) - 1] = 'm';
+
+        size_t size = emulator_serialize_size();
+        void* data = systemAlloc(size);
+        emulator_serialize(data, size);
+        int fd = open(fname, O_WRONLY | O_CREAT);
+        write(fd, data, size);
+        close(fd);
+        systemFree(data);
+    }
+
+    if(hidKeysDown() & KEY_Y) {
+        char* fname = strdup(gamePath);
+        fname[strlen(fname) - 3] = 'r';
+        fname[strlen(fname) - 2] = 'a';
+        fname[strlen(fname) - 1] = 'm';
+
+        FILE* fd = fopen(fname, "r");
+        if(!fd) {
+            return;
+        }
+
+        fseek(fd, 0, SEEK_END);
+        size_t size = (size_t) ftell(fd);
+        fseek(fd, 0, SEEK_SET);
+        void* data = systemAlloc(size);
+        fread(data, size, 1, fd);
+        fclose(fd);
+        emulator_unserialize(data, size);
+        systemFree(data);
+    }
 
    joy = 0;
    for(unsigned i = 0; i < 10; i++) {
@@ -568,13 +607,27 @@ void emulator_run(void) {
 
 bool emulator_load_game(const char* path) {
    bool ret = (bool) CPULoadRom(path);
+    gamePath = strdup(path);
    gba_init();
+
+    char* fname = strdup(gamePath);
+    fname[strlen(fname) - 3] = 's';
+    fname[strlen(fname) - 2] = 'a';
+    fname[strlen(fname) - 1] = 'v';
+
+    FILE* fd = fopen(fname, "r");
+    if(fd) {
+        fclose(fd);
+        CPUReadBatteryFile(fname);
+    }
+
    return ret;
 }
 
 void emulator_unload_game(void) {
    systemMessage("[VBA] Sync stats: Audio frames: %u, Video frames: %u, AF/VF: %.2f\n", g_audio_frames, g_video_frames, (float)g_audio_frames / g_video_frames);
-   g_audio_frames = 0;
+   gamePath = NULL;
+    g_audio_frames = 0;
    g_video_frames = 0;
 }
 
@@ -716,7 +769,7 @@ const char* chooseGame() {
     int scroll = 0;
     while(aptMainLoop()) {
         hidScanInput();
-        if(hidKeysDown() & KEY_START) {
+        if(hidKeysDown() & KEY_START && hidKeysDown() & KEY_SELECT) {
             return "////EXIT////";
         }
 
@@ -827,8 +880,8 @@ int main(int argv, char** argc) {
             emulator_run();
         }
 
-        if(!emuStarted || pause) {
-            pause = false;
+        if(!emuStarted || emuPause) {
+            emuPause = false;
             const char* game = chooseGame();
             if(game != NULL) {
                 if(strcmp(game, "////EXIT////") == 0) {
