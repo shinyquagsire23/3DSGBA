@@ -368,8 +368,16 @@ void screen_draw_char(u8* fb, u16 fbWidth, u16 fbHeight, char c, int x, int y, u
 
     unsigned char* data = asciiData[(int) c];
     for(int cy = 0; cy < 8; cy++) {
+        if(y + cy < 0 || y + cy >= fbWidth) {
+            continue;
+        }
+
         unsigned char l = data[cy];
         for(int cx = 0; cx < 8; cx++) {
+            if(x + cx < 0 || x + cx >= fbHeight) {
+                continue;
+            }
+
             if((0b10000000 >> cx) & l) {
                 u8* ptr = &fb[screen_get_index(x + cx, y + cy, fbWidth, fbHeight)];
                 *(ptr + 0) = b;
@@ -393,6 +401,10 @@ void screen_draw_string(u8* fb, u16 fbWidth, u16 fbHeight, const char* string, i
         if(c == '\n') {
             cx = x;
             cy += 8;
+        }
+
+        if(cx > fbHeight - 8) {
+            break;
         }
 
         screen_draw_char(fb, fbWidth, fbHeight, c, cx, cy, r, g, b);
@@ -487,23 +499,22 @@ static void load_image_preferences(void)
    if(found)
    {
       systemMessage("Found ROM in vba-over list.\n");
-
       enableRtc = (bool) gbaover[found_no].rtcEnabled;
-
-      if(gbaover[found_no].flashSize != 0)
-         flashSize = gbaover[found_no].flashSize;
-      else
-         flashSize = 65536;
+      if(gbaover[found_no].flashSize != 0) {
+          flashSize = gbaover[found_no].flashSize;
+      } else {
+          flashSize = 65536;
+      }
 
       cpuSaveType = gbaover[found_no].saveType;
-
       mirroringEnable = (bool) gbaover[found_no].mirroringEnabled;
 
       // Patch out idle loops with lsl r0, r0, #0x0 (nop)
-      if(gbaover[found_no].idle_loop)
-      {
-         rom[gbaover[found_no].idle_loop & 0x1FFFFFF] = 0;
-         rom[(gbaover[found_no].idle_loop+1) & 0x1FFFFFF] = 0;
+      if(gbaover[found_no].idle_loop) {
+         u32 offset = gbaover[found_no].idle_loop;
+         systemMessage("Patching idle loop at offset %d.", offset);
+         rom[offset] = 0;
+         rom[(offset + 1) & 0x1FFFFFF] = 0;
       }
    }
 
@@ -641,8 +652,8 @@ void emulator_unload_game(void) {
 
 void systemOnWriteDataToSoundBuffer(s16* finalWave, int length)
 {
-   // TODO
-   g_audio_frames += length >> 1;
+    // TODO
+    g_audio_frames += length >> 1;
 }
 
 u32* systemGetPixels() {
@@ -775,6 +786,7 @@ const char* chooseGame() {
     char* game = NULL;
     int cursor = 0;
     int scroll = 0;
+    int horizScroll = 0;
     while(aptMainLoop()) {
         hidScanInput();
         if(hidKeysDown() & KEY_START && hidKeysDown() & KEY_SELECT) {
@@ -826,6 +838,8 @@ const char* chooseGame() {
             if(cursor - scroll >= 20) {
                 scroll++;
             }
+
+            horizScroll = 0;
         }
 
         if(hidKeysDown() & KEY_UP && cursor > 0) {
@@ -833,6 +847,8 @@ const char* chooseGame() {
             if(cursor - scroll < 0) {
                 scroll--;
             }
+
+            horizScroll = 0;
         }
 
         u16 fbWidth, fbHeight;
@@ -841,12 +857,22 @@ const char* chooseGame() {
         int i = 0;
         for(std::vector<char*>::iterator it = contents->begin() + scroll; it != contents->end(); it++) {
             u8 color = 255;
+            int offset = 0;
             if(i + scroll == cursor) {
                 screen_fill(fb, fbWidth, fbHeight, 0, i * 12, fbHeight, 8, 255, 255, 255);
                 color = 0;
+                u32 width = strlen(*it) * 8;
+                if(width > fbHeight) {
+                    horizScroll -= 2;
+                    if(-horizScroll + fbHeight >= width) {
+                        horizScroll = 0;
+                    }
+                }
+
+                offset = horizScroll;
             }
 
-            screen_draw_string(fb, fbWidth, fbHeight, *it, 0, i * 12, color, color, color);
+            screen_draw_string(fb, fbWidth, fbHeight, *it, offset, i * 12, color, color, color);
             i++;
             if(i >= 20) {
                 break;
