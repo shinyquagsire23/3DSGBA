@@ -499,8 +499,8 @@ static void load_image_preferences(void)
       // Patch out idle loops with lsl r0, r0, #0x0 (nop)
       if(gbaover[found_no].idle_loop)
       {
-         rom[gbaover[found_no].idle_loop] = 0;
-         rom[gbaover[found_no].idle_loop+1] = 0;
+         rom[gbaover[found_no].idle_loop & 0x1FFFFFF] = 0;
+         rom[(gbaover[found_no].idle_loop+1) & 0x1FFFFFF] = 0;
       }
    }
 
