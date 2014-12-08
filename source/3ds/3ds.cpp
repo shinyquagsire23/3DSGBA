@@ -787,6 +787,7 @@ const char* chooseGame() {
     int cursor = 0;
     int scroll = 0;
     int horizScroll = 0;
+    u64 horizEndTime = 0;
     while(aptMainLoop()) {
         hidScanInput();
         if(hidKeysDown() & KEY_START && hidKeysDown() & KEY_SELECT) {
@@ -840,6 +841,7 @@ const char* chooseGame() {
             }
 
             horizScroll = 0;
+            horizEndTime = 0;
         }
 
         if(hidKeysDown() & KEY_UP && cursor > 0) {
@@ -849,6 +851,7 @@ const char* chooseGame() {
             }
 
             horizScroll = 0;
+            horizEndTime = 0;
         }
 
         u16 fbWidth, fbHeight;
@@ -863,9 +866,15 @@ const char* chooseGame() {
                 color = 0;
                 u32 width = strlen(*it) * 8;
                 if(width > fbHeight) {
-                    horizScroll -= 2;
                     if(-horizScroll + fbHeight >= width) {
-                        horizScroll = 0;
+                        if(horizEndTime == 0) {
+                            horizEndTime = osGetTime();
+                        } else if(osGetTime() - horizEndTime >= 4000) {
+                            horizScroll = 0;
+                            horizEndTime = 0;
+                        }
+                    } else {
+                        horizScroll -= 1;
                     }
                 }
 
