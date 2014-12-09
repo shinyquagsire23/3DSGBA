@@ -1,10 +1,11 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <vector>
+#include <string.h>
 
 #include <3ds.h>
-#include <3ds/services/hid.h>
 
+#include "../system.h"
 #include "../types.h"
 #include "util.h"
 #include "ui.h"
@@ -376,10 +377,11 @@ const char* uiSelectFile(const char* directory, const char* extension) {
             continue;
         }
 
-        char* path = (char*) malloc(strlen(directory) + strlen(selected) + 2);
+        char* path = (char*) systemAlloc(strlen(directory) + strlen(selected) + 2);
         snprintf(path, strlen(directory) + strlen(selected) + 2, "%s/%s", directory, selected);
         if(isDirectory(path)) {
             const char *select = uiSelectFile(path, extension);
+            systemFree(path);
             UIResult dirRes = uiGetResult();
             if(dirRes == BACK) {
                 continue;
