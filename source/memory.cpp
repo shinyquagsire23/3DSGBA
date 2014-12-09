@@ -45,6 +45,16 @@ bool utilIsGBAImage(const char * file)
 	return false;
 }
 
+static int utilGetSize(int size)
+{
+	int res = 1;
+
+	while(res < size)
+		res <<= 1;
+
+	return res;
+}
+
 uint8_t *utilLoad(const char *file, bool (*accept)(const char *), int &size)
 {
 	FILE *fp = NULL;
@@ -54,7 +64,7 @@ uint8_t *utilLoad(const char *file, bool (*accept)(const char *), int &size)
 	size = ftell(fp); /* get position at end (length)*/
 	rewind(fp);
 
-	void* data = systemAlloc(size);
+	void* data = systemAlloc((u32) utilGetSize(size));
 	if(!data) {
 		return NULL;
 	}
