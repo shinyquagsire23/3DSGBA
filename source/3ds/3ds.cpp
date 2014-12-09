@@ -412,6 +412,10 @@ void system10Frames() {
     }
 }
 
+int systemGetFrameSkip() {
+    return 0;
+}
+
 void systemMessage(const char* fmt, ...)
 {
    char buffer[256];
