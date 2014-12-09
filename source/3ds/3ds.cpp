@@ -428,7 +428,7 @@ void emulator_unload_game(void) {
 void systemOnWriteDataToSoundBuffer(s16* finalWave, int length)
 {
     if(hasAudio)
-        CSND_playsound(0x8, CSND_LOOP_DISABLE, CSND_ENCODING_PCM16, 22050, (u32*)finalWave, NULL, 1600, 2, 0);
+        CSND_playsound(0x8, CSND_LOOP_DISABLE, CSND_ENCODING_PCM16, 22050, (u32*) finalWave, NULL, 1600, 2, 0);
     g_audio_frames += length >> 1;
 }
 
