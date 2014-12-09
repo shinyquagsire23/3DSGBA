@@ -11,6 +11,10 @@ extern int  systemGetSensorY (void);
 
 extern void systemMessage(const char *, ...);
 
+extern void systemFlagForSave();
+extern void systemUnflagForSave();
+extern void system10Frames();
+
 extern void systemOnWriteDataToSoundBuffer(s16* finalWave, int length);
 
 extern void* systemAlloc(u32 size);

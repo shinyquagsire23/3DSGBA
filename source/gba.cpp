@@ -43,6 +43,7 @@
 #ifdef USE_SWITICKS
 extern int SWITicks;
 #endif
+static int frameCount = 0;
 static int cpuNextEvent = 0;
 static bool holdState = false;
 static uint32_t cpuPrefetch[2];
@@ -8335,6 +8336,7 @@ bool CPUReadBatteryFile(const char *fileName)
 
 	long size = ftell(file);
 	fseek(file, 0, SEEK_SET);
+	systemUnflagForSave();
 
 	if(size == 512 || size == 0x2000) {
 		if(fread(eepromData, 1, size, file) != (size_t)size) {
@@ -8447,6 +8449,8 @@ void CPUCleanUp (void)
 		systemFree(ioMem);
 		ioMem = NULL;
 	}
+	
+	systemUnflagForSave();
 }
 
 int CPULoadRom(const char * file)
@@ -8454,26 +8458,23 @@ int CPULoadRom(const char * file)
 	if(rom != NULL)
 		CPUCleanUp();
 
+	systemUnflagForSave();
+	if(file != NULL)
+	{
+		rom = utilLoad(file, utilIsGBAImage, romSize);
+		if(!rom) {
+			systemMessage("Could not allocate memory for ROM.");
+			free(workRAM);
+			workRAM = NULL;
+			return 0;
+		}
+	}
+		
 	workRAM = (uint8_t *)systemAlloc(0x40000);
 	if(workRAM == NULL) {
 		systemMessage("Could not allocate memory for Work RAM.");
 		return 0;
 	}
-
-	//uint8_t *whereToLoad = cpuIsMultiBoot ? workRAM : rom;
-
-		if(file != NULL)
-		{
-			rom = utilLoad(file,
-					utilIsGBAImage,
-					romSize);
-			if(!rom) {
-				systemMessage("Could not allocate memory for ROM.");
-				free(workRAM);
-				workRAM = NULL;
-				return 0;
-			}
-		}
 
 	bios = (uint8_t *)systemAlloc(0x4000);
 	if(bios == NULL) {
@@ -8646,7 +8647,6 @@ static void mode0RenderLine (void)
 				alpha_blend_brightness_switch();
 			}
 		}
-
 
 		systemDrawPixel(x, R_VCOUNT, color);
 	}
@@ -10726,6 +10726,7 @@ bool CPUReadState(const uint8_t* data, unsigned size)
 	if(eepromInUse)
 		gbaSaveType = 3;
 
+	systemUnflagForSave();
 	if(armState) {
 		ARM_PREFETCH;
 	} else {
@@ -11965,6 +11966,8 @@ void CPUReset (void)
 	}
 
 	ARM_PREFETCH;
+	
+	systemUnflagForSave();
 
 #ifdef USE_SWITICKS
 	SWITicks = 0;
@@ -12103,6 +12106,15 @@ updateLoop:
 					io_registers[REG_DISPSTAT] &= 0xFFFD;
 					if(R_VCOUNT == 160)
 					{
+						frameCount++;
+						if((frameCount % 10) == 0) {
+							system10Frames();
+						}
+						
+						if(frameCount == 60) {
+							frameCount = 0;
+						}
+						
 						/* update joystick information */
 						io_registers[REG_P1] = 0x03FF ^ (joy & 0x3FF);
 #if 0

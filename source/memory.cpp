@@ -136,8 +136,7 @@ void utilReadDataMem(const uint8_t *& data, variable_desc *desc)
 #define FLASH_PROGRAM            8
 #define FLASH_SETBANK            9
 
-extern uint8_t save_buf[0x20000 + 0x2000];
-uint8_t *flashSaveMemory = save_buf;
+uint8_t flashSaveMemory[FLASH_128K_SZ];
 
 int flashState = FLASH_READ_ARRAY;
 int flashReadState = FLASH_READ_ARRAY;
@@ -298,10 +297,12 @@ void flashWrite(uint32_t address, uint8_t byte)
 				memset(&flashSaveMemory[(flashBank << 16) + (address & 0xF000)],
 						0,
 						0x1000);
+				systemFlagForSave();
 				flashReadState = FLASH_ERASE_COMPLETE;
 			} else if(byte == 0x10) {
 				// CHIP ERASE
 				memset(flashSaveMemory, 0, flashSize);
+				systemFlagForSave();
 				flashReadState = FLASH_ERASE_COMPLETE;
 			} else {
 				flashState = FLASH_READ_ARRAY;
@@ -321,6 +322,7 @@ void flashWrite(uint32_t address, uint8_t byte)
 			break;
 		case FLASH_PROGRAM:
 			flashSaveMemory[(flashBank<<16)+address] = byte;
+			systemFlagForSave();
 			flashState = FLASH_READ_ARRAY;
 			flashReadState = FLASH_READ_ARRAY;
 			break;
@@ -342,8 +344,7 @@ int eepromByte = 0;
 int eepromBits = 0;
 int eepromAddress = 0;
 
-extern u8 save_buf[0x20000 + 0x2000];
-u8 *eepromData = save_buf + 0x20000;
+u8 eepromData[0x2000];
 
 u8 eepromBuffer[16];
 bool eepromInUse = false;
@@ -496,6 +497,8 @@ void eepromWrite(u8 value)
 				// write data;
 				for(int i = 0; i < 8; i++)
 					eepromData[(eepromAddress << 3) + i] = eepromBuffer[i];
+				
+				systemFlagForSave();
 			}
 			else if(eepromBits == 0x41)
 			{
@@ -526,6 +529,7 @@ void sramDelayedWrite(u32 address, u8 byte)
 void sramWrite(u32 address, u8 byte)
 {
 	flashSaveMemory[address & 0xFFFF] = byte;
+	systemFlagForSave();
 }
 
 /*============================================================

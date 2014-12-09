@@ -2,8 +2,6 @@
 #include <stdarg.h>
 #include <string.h>
 #include <3ds.h>
-#include <sys/dirent.h>
-#include <sys/stat.h>
 #include <sys/unistd.h>
 #include <fcntl.h>
 #include <vector>
@@ -149,14 +147,15 @@ PAD_KEY buttonMap[10] = {
         KEY_L
 };
 
-bool emuPause = false;
-bool emuStarted = false;
+static bool emuPause = false;
+static bool emuStarted = false;
+static bool hasFrame = false;
+static bool hasAudio = false;
 
-static unsigned serialize_size = 0;
-static unsigned has_frame;
-static unsigned g_audio_frames;
-static unsigned g_video_frames;
-static unsigned char hasAudio = 0;
+static unsigned stateSize = 0;
+
+
+static int saveCounter = 0;
 extern uint64_t joy;
 
 char* gamePath;
@@ -165,10 +164,6 @@ u8* fb;
 u16 fbWidth, fbHeight = 0;
 int xOffset, yOffset;
 u32 bgr_555_to_bgr_888_table[32 * 32 * 32];
-
-uint8_t save_buf[0x20000 + 0x2000];	/* Workaround for broken-by-design GBA save semantics. */
-
-static unsigned save_size = sizeof(save_buf);
 
 void initLookup() {
     for(u8 r5 = 0; r5 < 32; r5++) {
@@ -183,66 +178,6 @@ void initLookup() {
             }
         }
     }
-}
-
-size_t emulator_serialize_size(void)
-{
-   return serialize_size;
-}
-
-bool emulator_serialize(void *data, size_t size)
-{
-   return (bool) CPUWriteState((uint8_t*)data, size);
-}
-
-bool emulator_unserialize(const void *data, size_t size)
-{
-   return CPUReadState((uint8_t*)data, size);
-}
-
-static bool scan_area(const uint8_t *data, unsigned size)
-{
-   for (unsigned i = 0; i < size; i++)
-      if (data[i] != 0xff)
-         return true;
-
-   return false;
-}
-
-static void adjust_save_ram()
-{
-   if (scan_area(save_buf, 512) &&
-         !scan_area(save_buf + 512, sizeof(save_buf) - 512))
-   {
-      save_size = 512;
-      systemMessage("Detecting EEprom 8kbit\n");
-   }
-   else if (scan_area(save_buf, 0x2000) &&
-         !scan_area(save_buf + 0x2000, sizeof(save_buf) - 0x2000))
-   {
-      save_size = 0x2000;
-      systemMessage("Detecting EEprom 64kbit\n");
-   }
-
-   else if (scan_area(save_buf, 0x10000) &&
-         !scan_area(save_buf + 0x10000, sizeof(save_buf) - 0x10000))
-   {
-      save_size = 0x10000;
-      systemMessage("Detecting Flash 512kbit\n");
-   }
-   else if (scan_area(save_buf, 0x20000) &&
-         !scan_area(save_buf + 0x20000, sizeof(save_buf) - 0x20000))
-   {
-      save_size = 0x20000;
-      systemMessage("Detecting Flash 1Mbit\n");
-   }
-   else
-      systemMessage("Did not detect any particular SRAM type.\n");
-
-   if (save_size == 512 || save_size == 0x2000)
-      eepromData = save_buf;
-   else if (save_size == 0x10000 || save_size == 0x20000)
-      flashSaveMemory = save_buf;
 }
 
 static void load_image_preferences(void)
@@ -297,60 +232,69 @@ static void load_image_preferences(void)
    systemMessage("mirroringEnable = %d.\n", mirroringEnable);
 }
 
-static void gba_init(void)
-{
-   cpuSaveType = 0;
-   flashSize = 0x10000;
-   enableRtc = false;
-   mirroringEnable = false;
-
-   load_image_preferences();
-
-   if(flashSize == 0x10000 || flashSize == 0x20000)
-      flashSetSize(flashSize);
-
-   if(enableRtc)
-      rtcEnable(enableRtc);
-
-   doMirroring(mirroringEnable);
-
-   soundSetSampleRate(32000);
-
-   CPUInit(0, false);
-   CPUReset();
-
-   soundReset();
-
-   uint8_t * state_buf = (uint8_t*) systemAlloc(2000000);
-   serialize_size = CPUWriteState(state_buf, 2000000);
-   systemFree(state_buf);
-
-    systemMessage("ROM: %p", rom);
+void saveBattery() {
+    char* fname = strdup(gamePath);
+    fname[strlen(fname) - 3] = 's';
+    fname[strlen(fname) - 2] = 'a';
+    fname[strlen(fname) - 1] = 'v';
+    CPUWriteBatteryFile(fname);
 }
 
-void emulator_init(void)
-{
-    initLookup();
-   memset(save_buf, 0xff, sizeof(save_buf));
-   adjust_save_ram();
+bool emulator_load_game(const char* path) {
+    bool ret = (bool) CPULoadRom(path);
+    if(ret) {
+        gamePath = strdup(path);
+
+        cpuSaveType = 0;
+        flashSize = 0x10000;
+        enableRtc = false;
+        mirroringEnable = false;
+        load_image_preferences();
+        if(flashSize == 0x10000 || flashSize == 0x20000) {
+            flashSetSize(flashSize);
+        }
+
+        if(enableRtc) {
+            rtcEnable(enableRtc);
+        }
+
+        doMirroring(mirroringEnable);
+        CPUInit(0, false);
+        CPUReset();
+        soundSetSampleRate(32000);
+        soundReset();
+
+        char *fname = strdup(gamePath);
+        fname[strlen(fname) - 3] = 's';
+        fname[strlen(fname) - 2] = 'a';
+        fname[strlen(fname) - 1] = 'v';
+
+        FILE *fd = fopen(fname, "r");
+        if(fd) {
+            fclose(fd);
+            CPUReadBatteryFile(fname);
+        }
+
+        uint8_t *state_buf = (uint8_t *) systemAlloc(2000000);
+        stateSize = CPUWriteState(state_buf, 2000000);
+        systemFree(state_buf);
+    }
+
+    return ret;
 }
 
-void emulator_cleanup(void)
-{
-	CPUCleanUp();
-}
-
-void emulator_reset(void)
-{
-   CPUReset();
+void emulator_unload_game(void) {
+    saveBattery();
+    CPUCleanUp();
+    gamePath = NULL;
 }
 
 void emulator_run(void) {
-   hidScanInput();
-   if(hidKeysDown() & KEY_TOUCH) {
-       emuPause = true;
-       return;
-   }
+    hidScanInput();
+    if(hidKeysDown() & KEY_TOUCH) {
+        emuPause = true;
+        return;
+    }
 
     if(hidKeysDown() & KEY_X) {
         char* fname = strdup(gamePath);
@@ -358,9 +302,9 @@ void emulator_run(void) {
         fname[strlen(fname) - 2] = 'a';
         fname[strlen(fname) - 1] = 'm';
 
-        size_t size = emulator_serialize_size();
+        size_t size = stateSize;
         void* data = systemAlloc(size);
-        emulator_serialize(data, size);
+        CPUWriteState((u8*) data, size);
         int fd = open(fname, O_WRONLY | O_CREAT);
         write(fd, data, size);
         close(fd);
@@ -384,52 +328,25 @@ void emulator_run(void) {
         void* data = systemAlloc(size);
         fread(data, size, 1, fd);
         fclose(fd);
-        emulator_unserialize(data, size);
+        CPUReadState((u8*) data, size);
         systemFree(data);
     }
 
-   joy = 0;
-   for(unsigned i = 0; i < 10; i++) {
-      joy |= ((bool) (hidKeysHeld() & buttonMap[i])) << i;
-   }
-
-   has_frame = 0;
-   while(!has_frame) {
-      CPULoop();
-   }
-}
-
-bool emulator_load_game(const char* path) {
-   bool ret = (bool) CPULoadRom(path);
-    gamePath = strdup(path);
-   gba_init();
-
-    char* fname = strdup(gamePath);
-    fname[strlen(fname) - 3] = 's';
-    fname[strlen(fname) - 2] = 'a';
-    fname[strlen(fname) - 1] = 'v';
-
-    FILE* fd = fopen(fname, "r");
-    if(fd) {
-        fclose(fd);
-        CPUReadBatteryFile(fname);
+    joy = 0;
+    for(unsigned i = 0; i < 10; i++) {
+        joy |= ((bool) (hidKeysHeld() & buttonMap[i])) << i;
     }
 
-   return ret;
+    hasFrame = false;
+    while(!hasFrame) {
+        CPULoop();
+    }
 }
 
-void emulator_unload_game(void) {
-   systemMessage("[VBA] Sync stats: Audio frames: %u, Video frames: %u, AF/VF: %.2f\n", g_audio_frames, g_video_frames, (float)g_audio_frames / g_video_frames);
-   gamePath = NULL;
-    g_audio_frames = 0;
-   g_video_frames = 0;
-}
-
-void systemOnWriteDataToSoundBuffer(s16* finalWave, int length)
-{
-    if(hasAudio)
-        CSND_playsound(0x8, CSND_LOOP_DISABLE, CSND_ENCODING_PCM16, 22050, (u32*) finalWave, NULL, 1600, 2, 0);
-    g_audio_frames += length >> 1;
+void systemOnWriteDataToSoundBuffer(s16* finalWave, int length) {
+    if(hasAudio) {
+        CSND_playsound(0x8, CSND_LOOP_DISABLE, CSND_ENCODING_PCM16, (u32) soundGetSampleRate(), (u32 *) finalWave, NULL, 1600, 2, 0);
+    }
 }
 
 u32* systemGetPixels() {
@@ -475,8 +392,24 @@ void systemFlushScreen()
     gfxFlushBuffers();
     gfxSwapBuffers();
     gspWaitForVBlank();
-   g_video_frames++;
-   has_frame = 1;
+    hasFrame = true;
+}
+
+void systemFlagForSave() {
+    saveCounter = 30;
+}
+
+void systemUnflagForSave() {
+    saveCounter = 0;
+}
+
+void system10Frames() {
+    if(saveCounter) {
+        if(--saveCounter <= 0) {
+            saveBattery();
+            saveCounter = 0;
+        }
+    }
 }
 
 void systemMessage(const char* fmt, ...)
@@ -505,7 +438,7 @@ int main(int argv, char** argc) {
     fsInit();
     sdmcInit();
     hasAudio = !CSND_initialize(NULL);
-    emulator_init();
+    initLookup();
 
     while(aptMainLoop()) {
         if(emuStarted) {
@@ -536,7 +469,6 @@ int main(int argv, char** argc) {
             uiClear();
             if(emuStarted) {
                 emulator_unload_game();
-                emulator_cleanup();
             }
 
             if(!emulator_load_game(game)) {
@@ -546,6 +478,10 @@ int main(int argv, char** argc) {
 
             emuStarted = true;
         }
+    }
+
+    if(emuStarted) {
+        emulator_unload_game();
     }
 
     CSND_shutdown();

@@ -116,6 +116,7 @@ void soundSetVolume( float );
 // 0x200 PCM 2
 void soundPause (void);
 void soundResume (void);
+long soundGetSampleRate();
 void soundSetSampleRate(long sampleRate);
 void soundReset (void);
 void soundEvent_u8( int gb_addr, uint32_t addr, uint8_t  data );

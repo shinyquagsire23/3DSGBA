@@ -338,6 +338,10 @@ static int mixer_samples_read;
 
 static void gba_pcm_init (void)
 {
+	if(soundFinalWave) {
+		systemFree(soundFinalWave);
+	}
+	
 	soundFinalWave = (int16_t*)systemAlloc(1600);
 
 	pcm[0].pcm.output    = 0;
@@ -2045,6 +2049,10 @@ void soundReset (void)
 
 	// TODO: what about byte writes to SGCNT0_H etc.?
 	// End of Sound Event (NR52)
+}
+
+long soundGetSampleRate() {
+	return soundSampleRate;
 }
 
 void soundSetSampleRate(long sampleRate)

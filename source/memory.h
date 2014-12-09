@@ -25,8 +25,8 @@ extern int flashSize;
 extern bool eepromInUse;
 extern int eepromSize;
 
-extern uint8_t *flashSaveMemory;
-extern u8 *eepromData;
+extern uint8_t flashSaveMemory[FLASH_128K_SZ];
+extern u8 eepromData[0x2000];
 
 extern void eepromReadGameMem(const uint8_t *&data, int version);
 extern void eepromSaveGameMem(uint8_t *&data);
