@@ -44,6 +44,8 @@
 extern int SWITicks;
 #endif
 static int frameCount = 0;
+static u64 lastTime;
+static u32 speedPercent;
 static int cpuNextEvent = 0;
 static bool holdState = false;
 static uint32_t cpuPrefetch[2];
@@ -12110,8 +12112,14 @@ updateLoop:
 						if((frameCount % 10) == 0) {
 							system10Frames();
 						}
-						
+
+						systemShowSpeed(speedPercent);
 						if(frameCount == 60) {
+							u64 time = systemGetClock();
+                				if(time != lastTime) {
+                  					speedPercent = 100000/(time - lastTime);
+                				} 
+                				lastTime = time;
 							frameCount = 0;
 						}
 						

@@ -400,3 +400,15 @@ const char* uiSelectFile(const char* directory, const char* extension) {
     delete(contents);
     return selectResult;
 }
+
+void uiDisplaySpeed(int speed)
+{
+    u16 fbWidth, fbHeight;
+    u8* fb = gfxGetFramebuffer(GFX_BOTTOM, GFX_LEFT, &fbWidth, &fbHeight);
+
+    char display[4];
+    sprintf(display, "%d%%", speed);
+
+    uiFill(fb, fbWidth, fbHeight, fbHeight - 34, fbWidth - 20, 30, 20, 0, 0, 0);
+    uiDrawString(fb, fbWidth, fbHeight, display, fbHeight - 34, fbWidth - 20, 255, 255, 255);
+}

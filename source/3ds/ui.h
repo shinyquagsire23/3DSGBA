@@ -11,6 +11,7 @@ typedef enum _ui_result {
 
 UIResult uiGetResult();
 void uiClear();
+void uiDisplaySpeed(int speed);
 const char* uiSelectFile(const char* directory, const char* extension);
 
 #endif

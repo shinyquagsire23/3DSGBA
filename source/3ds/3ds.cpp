@@ -353,6 +353,10 @@ u32* systemGetPixels() {
     return (u32*) gfxGetFramebuffer(GFX_TOP, GFX_LEFT, &fbWidth, &fbHeight);
 }
 
+u64 systemGetClock() {
+	return osGetTime();
+}
+
 u16 systemGetScreenWidth() {
     if(fbHeight == 0) {
         systemGetPixels();
@@ -420,6 +424,11 @@ void systemMessage(const char* fmt, ...)
    vsnprintf(buffer, sizeof(buffer), fmt, ap);
    svcOutputDebugString(buffer, strlen(buffer));
    va_end(ap);
+}
+
+void systemShowSpeed(int speed)
+{
+    uiDisplaySpeed(speed);
 }
 
 void* systemAlloc(u32 size) {
