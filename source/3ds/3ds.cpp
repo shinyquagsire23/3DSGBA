@@ -156,6 +156,7 @@ static unsigned serialize_size = 0;
 static unsigned has_frame;
 static unsigned g_audio_frames;
 static unsigned g_video_frames;
+static unsigned char hasAudio = 0;
 extern uint64_t joy;
 
 char* gamePath;
@@ -426,7 +427,8 @@ void emulator_unload_game(void) {
 
 void systemOnWriteDataToSoundBuffer(s16* finalWave, int length)
 {
-    // TODO
+    if(hasAudio)
+        CSND_playsound(0x8, CSND_LOOP_DISABLE, CSND_ENCODING_PCM16, 22050, (u32*)finalWave, NULL, 1600, 2, 0);
     g_audio_frames += length >> 1;
 }
 
@@ -502,7 +504,7 @@ int main(int argv, char** argc) {
     gfxInit();
     fsInit();
     sdmcInit();
-    CSND_initialize(NULL);
+    hasAudio = !CSND_initialize(NULL);
     emulator_init();
 
     while(aptMainLoop()) {

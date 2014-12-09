@@ -287,7 +287,7 @@ INLINE void Gb_Wave::write( unsigned addr, int data )
 		wave_bank[index] = data;;
 }
 
-static int16_t   soundFinalWave [1600];
+static int16_t*   soundFinalWave;
 long  soundSampleRate    = 22050;
 int   SOUND_CLOCK_TICKS  = SOUND_CLOCK_TICKS_;
 int   soundTicks         = SOUND_CLOCK_TICKS_;
@@ -338,6 +338,8 @@ static int mixer_samples_read;
 
 static void gba_pcm_init (void)
 {
+	soundFinalWave = (int16_t*)systemAlloc(1600);
+
 	pcm[0].pcm.output    = 0;
 	pcm[0].pcm.last_time = 0;
 	pcm[0].pcm.last_amp  = 0;
