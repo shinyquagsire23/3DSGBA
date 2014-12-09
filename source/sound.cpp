@@ -341,7 +341,7 @@ static void gba_pcm_init (void)
 	if(soundFinalWave) {
 		systemFree(soundFinalWave);
 	}
-	
+
 	soundFinalWave = (int16_t*)systemAlloc(1600);
 
 	pcm[0].pcm.output    = 0;

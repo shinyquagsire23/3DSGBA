@@ -297,6 +297,7 @@ static uint32_t dma3Dest = 0;
 void (*cpuSaveGameFunc)(uint32_t,uint8_t) = flashSaveDecide;
 static bool fxOn = false;
 static bool windowOn = false;
+static int frameSkipCount = 0;
 
 static int cpuDmaTicksToUpdate = 0;
 
@@ -11865,6 +11866,7 @@ void CPUReset (void)
 	renderLine = mode0RenderLine;
 	fxOn = false;
 	windowOn = false;
+	frameSkipCount = 0;
 	saveType = 0;
 	graphics.layerEnable = io_registers[REG_DISPCNT];
 
@@ -12159,7 +12161,12 @@ updateLoop:
 							UPDATE_REG(0x202, io_registers[REG_IF]);
 						}
 						CPUCheckDMA(1, 0x0f);
-						systemFlushScreen();
+						if(frameSkipCount >= systemGetFrameSkip()) {
+							systemFlushScreen();
+							frameSkipCount = 0;
+						} else {
+							frameSkipCount++;
+						}
 					}
 
 					UPDATE_REG(0x04, io_registers[REG_DISPSTAT]);
@@ -12181,8 +12188,10 @@ updateLoop:
 							gfxDrawOBJWin();
 					}
 
-					systemPrepareDraw();
-					(*renderLine)();
+					if(frameSkipCount >= systemGetFrameSkip()) {
+						systemPrepareDraw();
+						(*renderLine)();
+					}
 
 					// entering H-Blank
 					io_registers[REG_DISPSTAT] |= 2;

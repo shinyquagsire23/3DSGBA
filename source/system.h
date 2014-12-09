@@ -14,7 +14,8 @@ extern void systemMessage(const char *, ...);
 extern void systemFlagForSave();
 extern void systemUnflagForSave();
 extern void system10Frames();
-void systemShowSpeed(int speed);
+extern int systemGetFrameSkip();
+extern void systemShowSpeed(int speed);
 
 extern void systemOnWriteDataToSoundBuffer(s16* finalWave, int length);
 
